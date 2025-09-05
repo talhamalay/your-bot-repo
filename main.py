@@ -3,7 +3,7 @@ import threading
 import json
 import random
 from flask import Flask
-from telegram import Update, ReplyKeyboardMarkup
+from telegram import Update, ReplyKeyboardMarkup, KeyboardButton
 from telegram.ext import (
     Application, CommandHandler, MessageHandler, ConversationHandler,
     filters, ContextTypes
@@ -22,29 +22,33 @@ def run_flask():
 
 # --- Bot Token & Admin ---
 BOT_TOKEN = "8497771770:AAFlUXMYc6AjSWWyj31TttyvcIww9wFmmCg"
-ADMIN_ID = 7053615484   # Only admin can access moderation
+ADMIN_ID = 7053615484     # Only admin can unlock users
+ADMIN_USERNAME = "Astryx_7"
 
 # --- File for storing users ---
 USERS_FILE = "users.json"
 
-# --- Demo Girls Data ---
-DEMO_GIRLS = [
-    {"id": 1001, "name": "Ayesha", "city": "Multan", "gender": "Female", "choice_city": "Lahore",
-     "photo": "https://i.ibb.co/0jMMvB9/girl1.jpg", "contact": "+92 314 7724176"},
-    {"id": 1002, "name": "Sara", "city": "Lahore", "gender": "Female", "choice_city": "Multan",
-     "photo": "https://i.ibb.co/6nV3Ww6/girl2.jpg", "contact": "+92 314 4065628"},
-    {"id": 1003, "name": "Hina", "city": "Multan", "gender": "Female", "choice_city": "Lahore",
-     "photo": "https://i.ibb.co/vYfVsk7/girl3.jpg", "contact": "+92 312 0764091"},
-    {"id": 1004, "name": "Mehak", "city": "Lahore", "gender": "Female", "choice_city": "Multan",
-     "photo": "https://i.ibb.co/fDL4Pjv/girl4.jpg", "contact": "+92 327 0891461"},
-    {"id": 1005, "name": "Zoya", "city": "Multan", "gender": "Female", "choice_city": "Lahore",
-     "photo": "https://i.ibb.co/n6JRfgV/girl5.jpg", "contact": "+92 317 6235934"},
+# --- Fixed City Options ---
+CITY_OPTIONS = ["Multan", "Lahore", "Bahawalpur", "Murree", "Islamabad"]
+
+# --- Demo Girls Data (promo free numbers) ---
+PROMO_GIRLS = [
+    {"id": 2001, "name": "Areeba", "city": "Lahore", "gender": "Female",
+     "choice_city": "Multan", "photo": "https://i.ibb.co/6nV3Ww6/girl2.jpg", "contact": "+92 300 9812345"},
+    {"id": 2002, "name": "Nimra", "city": "Multan", "gender": "Female",
+     "choice_city": "Lahore", "photo": "https://i.ibb.co/fDL4Pjv/girl4.jpg", "contact": "+92 301 7723456"},
+    {"id": 2003, "name": "Sana", "city": "Bahawalpur", "gender": "Female",
+     "choice_city": "Islamabad", "photo": "https://i.ibb.co/vYfVsk7/girl3.jpg", "contact": "+92 302 6634123"},
+    {"id": 2004, "name": "Mehak", "city": "Islamabad", "gender": "Female",
+     "choice_city": "Murree", "photo": "https://i.ibb.co/n6JRfgV/girl5.jpg", "contact": "+92 303 1122345"},
+    {"id": 2005, "name": "Zoya", "city": "Murree", "gender": "Female",
+     "choice_city": "Lahore", "photo": "https://i.ibb.co/0jMMvB9/girl1.jpg", "contact": "+92 304 8876543"},
 ]
 
 # --- Ensure file exists as list ---
 if not os.path.exists(USERS_FILE):
     with open(USERS_FILE, "w", encoding="utf-8") as f:
-        json.dump(DEMO_GIRLS, f, indent=2)
+        json.dump(PROMO_GIRLS, f, indent=2)
 
 def load_users():
     with open(USERS_FILE, "r", encoding="utf-8") as f:
@@ -89,30 +93,41 @@ async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
 async def get_name(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["name"] = update.message.text
-    await update.message.reply_text("🏙️ Ap kis city se ho?")
+    # Show fixed cities
+    keyboard = [[city] for city in CITY_OPTIONS]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("🏙️ Ap kis city se ho? Sirf options me se select karo:", reply_markup=reply_markup)
     return CITY
 
 async def get_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.text not in CITY_OPTIONS:
+        await update.message.reply_text("⚠️ Dost sirf given options me se select karo.")
+        return CITY
     context.user_data["city"] = update.message.text
     await update.message.reply_text("🚻 Apka gender kya hai? (Male/Female):")
     return GENDER
 
 async def get_gender(update: Update, context: ContextTypes.DEFAULT_TYPE):
     context.user_data["gender"] = update.message.text.capitalize()
-    await update.message.reply_text("💡 Apko kis city ki match pasand hogi?")
+    keyboard = [[city] for city in CITY_OPTIONS]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True)
+    await update.message.reply_text("💡 Apko kis city ki match pasand hogi?", reply_markup=reply_markup)
     return CHOICE_CITY
 
 async def get_choice_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.text not in CITY_OPTIONS:
+        await update.message.reply_text("⚠️ Dost sirf given options me se select karo.")
+        return CHOICE_CITY
     context.user_data["choice_city"] = update.message.text
-    await update.message.reply_text(
-        "📸 Apni picture bhejo.\n\n⚠️ Note: Picture sirf match ke waqt show hogi aur baad me delete ho jayegi."
-    )
+    await update.message.reply_text("📸 Apni picture bhejo (sirf match ke waqt show hogi).")
     return PHOTO
 
 async def get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo_file = await update.message.photo[-1].get_file()
     context.user_data["photo"] = photo_file.file_id
-    await update.message.reply_text("📱 Apna WhatsApp number ya Telegram ID bhejo (ya Contact button use karo):")
+    keyboard = [[KeyboardButton("📱 Share Contact", request_contact=True)]]
+    reply_markup = ReplyKeyboardMarkup(keyboard, resize_keyboard=True, one_time_keyboard=True)
+    await update.message.reply_text("📱 Apna WhatsApp number ya Telegram ID bhejo:", reply_markup=reply_markup)
     return CONTACT
 
 async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -131,7 +146,9 @@ async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "gender": context.user_data["gender"],
         "choice_city": context.user_data["choice_city"],
         "photo": context.user_data["photo"],
-        "contact": context.user_data["contact"]
+        "contact": context.user_data["contact"],
+        "unlocked": False,
+        "matched": None
     })
     save_users(users)
 
@@ -152,27 +169,43 @@ async def find_match(update: Update, context: ContextTypes.DEFAULT_TYPE):
         await update.message.reply_text("⚠️ Dost pehle /register karlo.")
         return
 
-    matches = [
-        u for u in users if u["gender"] != me["gender"] and
-        (u["city"].lower() == me["choice_city"].lower() or u["city"].lower() == me["city"].lower())
-    ]
+    # If already matched
+    if me.get("matched"):
+        match = next((u for u in users if u["id"] == me["matched"]), None)
+    else:
+        matches = [
+            u for u in users if u["gender"] != me["gender"] and
+            (u["city"].lower() == me["choice_city"].lower() or u["city"].lower() == me["city"].lower())
+        ]
+        if not matches:
+            await update.message.reply_text("❌ Abhi koi match available nahi dost, thori der baad try karo.")
+            return
+        match = random.choice(matches)
+        me["matched"] = match["id"]
+        save_users(users)
 
-    if not matches:
-        await update.message.reply_text("❌ Abhi koi match available nahi dost, thori der baad try karo.")
-        return
-
-    match = random.choice(matches)
     compatibility = random.randint(70, 95)
 
-    await update.message.reply_photo(
-        match["photo"],
-        caption=(f"💘 Match Mil Gayi!\n\n"
-                 f"👤 Name: {match['name']}\n"
-                 f"🏙️ City: {match['city']}\n"
-                 f"❤️ Compatibility: {compatibility}%\n\n"
-                 f"🔒 Contact info lock hai.\n"
-                 f"Unlock karne ke liye Rs.500 Easypaisa bhejein: 03480223684 (Talha Mehmood)")
-    )
+    if me.get("unlocked"):
+        await update.message.reply_photo(
+            match["photo"],
+            caption=(f"💘 Match Mil Gayi!\n\n"
+                     f"👤 Name: {match['name']}\n"
+                     f"🏙️ City: {match['city']}\n"
+                     f"❤️ Compatibility: {compatibility}%\n\n"
+                     f"📱 Contact: {match['contact']}")
+        )
+    else:
+        await update.message.reply_photo(
+            match["photo"],
+            caption=(f"💘 Match Mil Gayi!\n\n"
+                     f"👤 Name: {match['name']}\n"
+                     f"🏙️ City: {match['city']}\n"
+                     f"❤️ Compatibility: {compatibility}%\n\n"
+                     f"🔒 Contact info lock hai.\n"
+                     f"Unlock karne ke liye Rs.500 Easypaisa bhejein: 03480223684 (Talha Mehmood)\n\n"
+                     f"Payment proof bhejne ke baad receipt forward karein @{ADMIN_USERNAME} ko.")
+        )
 
 # --- Profile ---
 async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -186,7 +219,8 @@ async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text(
         f"👤 Apki Profile:\n\n"
         f"Name: {me['name']}\nCity: {me['city']}\nGender: {me['gender']}\n"
-        f"Choice City: {me['choice_city']}\nContact: {me['contact']}"
+        f"Choice City: {me['choice_city']}\nContact: {me['contact']}\n"
+        f"Unlocked: {me['unlocked']}"
     )
 
 # --- Help ---
@@ -199,7 +233,7 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/help - Ye message"
     )
 
-# --- Moderation ---
+# --- Moderation / Unlock ---
 async def moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     if update.message.from_user.id != ADMIN_ID:
         await update.message.reply_text("❌ Dost ap admin nahi ho.")
@@ -208,9 +242,30 @@ async def moderation(update: Update, context: ContextTypes.DEFAULT_TYPE):
     users = load_users()
     text = "👥 Registered Users:\n\n"
     for u in users:
-        text += f"{u['name']} | {u['city']} | {u['gender']} | {u['contact']}\n"
+        text += f"{u['id']} | {u['name']} | {u['city']} | {u['gender']} | {u['contact']} | Unlocked: {u['unlocked']}\n"
     await update.message.reply_text(text or "No users yet.")
 
+async def unlock(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if update.message.from_user.id != ADMIN_ID:
+        await update.message.reply_text("❌ Sirf admin unlock kar sakta hai.")
+        return
+
+    try:
+        user_id = int(context.args[0])
+    except:
+        await update.message.reply_text("⚠️ Usage: /unlock <user_id>")
+        return
+
+    users = load_users()
+    me = next((u for u in users if u["id"] == user_id), None)
+    if not me:
+        await update.message.reply_text("⚠️ User nahi mila.")
+        return
+
+    me["unlocked"] = True
+    save_users(users)
+    await update.message.reply_text(f"✅ User {user_id} unlock kar diya gaya.")
+    
 # --- Bad Word Filter ---
 async def filter_bad_words(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower()
@@ -251,6 +306,7 @@ def main():
     app.add_handler(CommandHandler("profile", profile))
     app.add_handler(CommandHandler("find", find_match))
     app.add_handler(CommandHandler("moderation", moderation))
+    app.add_handler(CommandHandler("unlock", unlock))
 
     app.add_handler(conv_handler)
     app.add_handler(MessageHandler(filters.Regex("^❤️ Find Match$"), find_match))
