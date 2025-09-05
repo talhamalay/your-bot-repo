@@ -41,13 +41,18 @@ DEMO_GIRLS = [
      "photo": "https://i.ibb.co/n6JRfgV/girl5.jpg", "contact": "+92 317 6235934"},
 ]
 
+# --- Ensure file exists as list ---
 if not os.path.exists(USERS_FILE):
     with open(USERS_FILE, "w", encoding="utf-8") as f:
         json.dump(DEMO_GIRLS, f, indent=2)
 
 def load_users():
     with open(USERS_FILE, "r", encoding="utf-8") as f:
-        return json.load(f)
+        data = json.load(f)
+    if isinstance(data, dict):  # auto-fix agar dict nikla
+        data = [data]
+        save_users(data)
+    return data
 
 def save_users(data):
     with open(USERS_FILE, "w", encoding="utf-8") as f:
@@ -77,7 +82,7 @@ async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
         reply_markup=reply_markup
     )
 
-# --- Registration ---
+# --- Registration Flow ---
 async def register(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("✍️ Apna full name likho dost:")
     return NAME
@@ -107,15 +112,14 @@ async def get_choice_city(update: Update, context: ContextTypes.DEFAULT_TYPE):
 async def get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     photo_file = await update.message.photo[-1].get_file()
     context.user_data["photo"] = photo_file.file_id
-    await update.message.reply_text("📱 Apna WhatsApp number ya Telegram ID bhejo:")
+    await update.message.reply_text("📱 Apna WhatsApp number ya Telegram ID bhejo (ya Contact button use karo):")
     return CONTACT
 
-# --- FIXED CONTACT ---
 async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    if update.message.contact:  # agar user "Share Contact" button se bheje
+    if update.message.contact:  # agar user "Share Contact" kare
         contact_info = update.message.contact.phone_number
     else:
-        contact_info = update.message.text
+        contact_info = update.message.text.strip()
 
     context.user_data["contact"] = contact_info
 
