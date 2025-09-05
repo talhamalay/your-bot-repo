@@ -3,6 +3,7 @@ import os
 import threading
 from flask import Flask
 from telegram.ext import Application, MessageHandler, filters
+from rapidfuzz import process
 
 # --- Flask for Render keep-alive ---
 app = Flask(__name__)
@@ -19,24 +20,26 @@ def run_flask():
 with open("dictionary.json", "r", encoding="utf-8") as f:
     WORDS = json.load(f)
 
+# All keys in lower for matching
+DICT_KEYS = [k.lower() for k in WORDS.keys()]
+
 # --- Bot Config ---
 BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
 
 async def handle_message(update, context):
     text = update.message.text.lower().strip()
-    # Clean input (remove spaces, extra dots etc.)
-    clean = "".join(ch for ch in text if ch.isalnum())
 
-    response = None
-    for key, value in WORDS.items():
-        if clean == key.lower().replace(" ", ""):
-            response = value
-            break
+    # Fuzzy match (90% threshold)
+    best_match = process.extractOne(text, DICT_KEYS, score_cutoff=80)
 
-    if response:
-        await update.message.reply_text(response)
-    else:
-        await update.message.reply_text("❌ Word not found in my dictionary.")
+    if best_match:
+        matched_key = best_match[0]
+        response = WORDS.get(matched_key, None)
+        if response:
+            await update.message.reply_text(response)
+            return
+
+    await update.message.reply_text("❌ Word not found in my dictionary.")
 
 def main():
     # Start Flask server in background thread
