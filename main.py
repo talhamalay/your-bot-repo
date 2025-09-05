@@ -110,10 +110,15 @@ async def get_photo(update: Update, context: ContextTypes.DEFAULT_TYPE):
     await update.message.reply_text("📱 Apna WhatsApp number ya Telegram ID bhejo:")
     return CONTACT
 
+# --- FIXED CONTACT ---
 async def get_contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    context.user_data["contact"] = update.message.text
+    if update.message.contact:  # agar user "Share Contact" button se bheje
+        contact_info = update.message.contact.phone_number
+    else:
+        contact_info = update.message.text
 
-    # Save user
+    context.user_data["contact"] = contact_info
+
     users = load_users()
     users.append({
         "id": update.message.from_user.id,
@@ -229,7 +234,10 @@ def main():
             GENDER: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_gender)],
             CHOICE_CITY: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_choice_city)],
             PHOTO: [MessageHandler(filters.PHOTO, get_photo)],
-            CONTACT: [MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact)],
+            CONTACT: [
+                MessageHandler(filters.TEXT & ~filters.COMMAND, get_contact),
+                MessageHandler(filters.CONTACT, get_contact)
+            ],
         },
         fallbacks=[CommandHandler("cancel", cancel)]
     )
