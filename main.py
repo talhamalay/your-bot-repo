@@ -23,7 +23,7 @@ with open("dictionary.json", "r", encoding="utf-8") as f:
 
 DICT_KEYS = [k.lower() for k in WORDS.keys()]
 
-BOT_TOKEN = "YOUR_BOT_TOKEN_HERE"
+BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
 
 # --- Bad Words List ---
 BAD_WORDS = [
