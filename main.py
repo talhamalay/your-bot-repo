@@ -1,4 +1,3 @@
-import imghdr  # force import so telegram library works
 from flask import Flask
 from telegram.ext import Updater, MessageHandler, Filters
 import difflib
