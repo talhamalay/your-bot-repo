@@ -1,38 +1,31 @@
-import json
 import os
 import threading
+import json
 from flask import Flask
-from telegram import Update
-from telegram.ext import Application, MessageHandler, filters, ContextTypes
+from telegram.ext import Application, MessageHandler, filters
 from rapidfuzz import process
 
-# --- Flask for Render keep-alive ---
+# Flask App
 app_flask = Flask(__name__)
 
-@app_flask.route('/')
+@app_flask.route("/")
 def home():
-    return "Bot is running fine on Render 🚀"
+    return "✅ Bot is running fine on Render!"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 10000))
+    port = int(os.environ.get("PORT", 5000))   # Render ke PORT par bind karo
     app_flask.run(host="0.0.0.0", port=port)
 
-# --- Load Dictionary ---
+# --- Load dictionary.json ---
 with open("dictionary.json", "r", encoding="utf-8") as f:
     WORDS = json.load(f)
 
-# All keys lowercase for matching
 DICT_KEYS = [k.lower() for k in WORDS.keys()]
 
-# --- Bot Config ---
 BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
-bot_app = Application.builder().token(BOT_TOKEN).build()
 
-# --- Handlers ---
-async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
+async def handle_message(update, context):
     text = update.message.text.lower().strip()
-
-    # Fuzzy match (80% threshold)
     best_match = process.extractOne(text, DICT_KEYS, score_cutoff=80)
 
     if best_match:
@@ -44,12 +37,14 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("❌ Word not found in my dictionary.")
 
-bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-
-# --- Main ---
-if __name__ == "__main__":
-    # Start Flask in background
+def main():
+    # Flask thread start
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # Run Telegram bot
-    bot_app.run_polling(drop_pending_updates=True, close_loop=False)
+    # Telegram Bot
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling(drop_pending_updates=True, close_loop=False)
+
+if __name__ == "__main__":
+    main()
