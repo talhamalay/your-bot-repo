@@ -1,34 +1,35 @@
 import telebot
 import json
-from flask import Flask
+import re
+import os
 
-# Apna bot token (NEW)
-TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
-bot = telebot.TeleBot(TOKEN)
+# === Bot Token ===
+BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
+bot = telebot.TeleBot(BOT_TOKEN)
 
-# Dictionary load karna
-with open("dictionary.json", "r", encoding="utf-8") as f:
-    responses = json.load(f)
+# === Load Dictionary ===
+if os.path.exists("dictionary.json"):
+    with open("dictionary.json", "r", encoding="utf-8") as f:
+        responses = json.load(f)
+else:
+    responses = {}
 
-app = Flask(__name__)
+# === Text Cleaner (normalization) ===
+def clean_text(text):
+    text = text.lower().strip()                  # lowercase + trim
+    text = re.sub(r'[^\w\s]', '', text)          # remove punctuation
+    return text
 
+# === Bot Message Handler ===
 @bot.message_handler(func=lambda message: True)
 def reply(message):
-    text = message.text.lower()
+    text = clean_text(message.text)
+
     if text in responses:
         bot.reply_to(message, responses[text])
     else:
         bot.reply_to(message, "Sorry! Not added in my dictionary. Skip question ⁉️")
 
-@app.route('/')
-def index():
-    return "Bot is running!"
-
-import threading
-def run_bot():
-    bot.infinity_polling()
-
-threading.Thread(target=run_bot).start()
-
-if __name__ == "__main__":
-    app.run(host="0.0.0.0", port=10000)
+# === Run Bot ===
+print("🤖 Bot is running...")
+bot.infinity_polling()
