@@ -1,54 +1,36 @@
-import json
-import os
 import threading
 from flask import Flask
-from telegram.ext import Application, MessageHandler, filters
-from rapidfuzz import process
+from telegram import Update
+from telegram.ext import Application, CommandHandler, MessageHandler, filters, ContextTypes
 
-# --- Flask for Render keep-alive ---
-app = Flask(__name__)
+# Flask app for Render keep-alive
+flask_app = Flask(__name__)
 
-@app.route('/')
+@flask_app.route("/")
 def home():
-    return "Bot is running fine!"
+    return "Bot is running fine on Render 🚀"
 
 def run_flask():
-    port = int(os.environ.get("PORT", 5000))
-    app.run(host="0.0.0.0", port=port)
+    flask_app.run(host="0.0.0.0", port=10000)
 
-# --- Load Dictionary ---
-with open("dictionary.json", "r", encoding="utf-8") as f:
-    WORDS = json.load(f)
+# Telegram bot
+TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
 
-# All keys in lower for matching
-DICT_KEYS = [k.lower() for k in WORDS.keys()]
+app = Application.builder().token(TOKEN).build()
 
-# --- Bot Config ---
-BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
+# Example handlers
+async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text("Hello! Bot is live ✅")
 
-async def handle_message(update, context):
-    text = update.message.text.lower().strip()
+async def echo(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    await update.message.reply_text(update.message.text)
 
-    # Fuzzy match (90% threshold)
-    best_match = process.extractOne(text, DICT_KEYS, score_cutoff=80)
-
-    if best_match:
-        matched_key = best_match[0]
-        response = WORDS.get(matched_key, None)
-        if response:
-            await update.message.reply_text(response)
-            return
-
-    await update.message.reply_text("❌ Word not found in my dictionary.")
-
-def main():
-    # Start Flask server in background thread
-    threading.Thread(target=run_flask, daemon=True).start()
-
-    # Start Telegram bot
-    app = Application.builder().token(BOT_TOKEN).build()
-    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
-    app.run_polling()
+app.add_handler(CommandHandler("start", start))
+app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, echo))
 
 if __name__ == "__main__":
-    main()
+    # Run Flask in background
+    threading.Thread(target=run_flask, daemon=True).start()
+
+    # Run Telegram bot (non-blocking)
+    app.run_polling(drop_pending_updates=True, close_loop=False)
