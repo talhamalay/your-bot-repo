@@ -1,56 +1,63 @@
-import json
-import os
 from flask import Flask
-from threading import Thread
 from telegram.ext import Updater, MessageHandler, Filters
+import difflib
+import json
 
-# Load dictionary
-with open("dictionary.json", "r", encoding="utf-8") as f:
-    DICTIONARY = json.load(f)
-
-# Function to normalize input (lowercase + strip spaces)
-def normalize(text: str) -> str:
-    return text.strip().lower()
-
-# Telegram message handler
-def handle_message(update, context):
-    user_text = normalize(update.message.text)
-
-    # Search in dictionary
-    if user_text in DICTIONARY:
-        reply = DICTIONARY[user_text]
-    else:
-        reply = "Soory 😅 Not Added In My Dictionary, Skip Question ⁉️"
-
-    update.message.reply_text(reply)
-
-# Flask app (Render free deploy trick)
-app = Flask('')
+# ---------------- Flask Server ----------------
+app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "Bot Running ✅"
+    return "✅ Bot is running successfully!"
 
-def run():
-    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+# ---------------- Load Dictionary ----------------
+with open("dictionary.json", "r", encoding="utf-8") as f:
+    dictionary = json.load(f)
 
-def keep_alive():
-    t = Thread(target=run)
-    t.start()
+# ---------------- Telegram Bot Setup ----------------
+TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"  # <-- Aapka Bot Token
+updater = Updater(TOKEN, use_context=True)
+dispatcher = updater.dispatcher
 
+# User ke liye suggestions store karne ka dict
+user_suggestions = {}
+
+# ---------------- Matching Function ----------------
+def find_reply(text, user_id):
+    text = text.lower().strip()
+    keys = list(dictionary.keys())
+
+    # Agar user "yes" bole aur uske liye suggestion store hai
+    if text == "yes" and user_id in user_suggestions:
+        suggested_key = user_suggestions[user_id]
+        del user_suggestions[user_id]
+        return dictionary[suggested_key]
+
+    # Normal fuzzy match (cutoff=0.6)
+    matches = difflib.get_close_matches(text, keys, n=1, cutoff=0.6)
+    if matches:
+        return dictionary[matches[0]]
+
+    # Suggestion dena (cutoff=0.3 for loose matching)
+    suggestion = difflib.get_close_matches(text, keys, n=1, cutoff=0.3)
+    if suggestion:
+        user_suggestions[user_id] = suggestion[0]
+        return f"❓ Did you mean: '{suggestion[0]}' ? Reply with 'Yes' to confirm."
+    
+    # Agar kuch bhi match na mile
+    return "❌ Sorry, I don’t understand. Try another word!"
+
+# ---------------- Handler ----------------
+def handle_message(update, context):
+    user_text = update.message.text
+    user_id = update.message.from_user.id
+    reply = find_reply(user_text, user_id)
+    update.message.reply_text(reply)
+
+# ---------------- Dispatcher ----------------
+dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+# ---------------- Start Bot ----------------
 if __name__ == "__main__":
-    # Flask keep alive
-    keep_alive()
-
-    # Your Telegram bot token
-    TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
-
-    # Setup bot
-    updater = Updater(TOKEN, use_context=True)
-    dp = updater.dispatcher
-
-    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-
-    # Start bot
     updater.start_polling()
-    updater.idle()
+    app.run(host="0.0.0.0", port=5000)
