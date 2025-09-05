@@ -1,49 +1,34 @@
-import os
-import json
 import telebot
-from flask import Flask, request
+import json
+from flask import Flask
 
-# ---------------------------
-# Load dictionary.json
-# ---------------------------
-with open("dictionary.json", "r", encoding="utf-8") as f:
-    DICTIONARY = json.load(f)
-
-# ---------------------------
-# Telegram Bot Token
-# ---------------------------
-TOKEN = os.getenv("BOT_TOKEN", "8497771770:AAE_AeqqjYuq1KL-pAXdgoXp0HVfiXcJ5rM")
+# Apna bot token (NEW)
+TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
 bot = telebot.TeleBot(TOKEN)
 
-# ---------------------------
-# Flask App (Render ke liye)
-# ---------------------------
+# Dictionary load karna
+with open("dictionary.json", "r", encoding="utf-8") as f:
+    responses = json.load(f)
+
 app = Flask(__name__)
 
-@app.route("/")
-def home():
-    return "Bot is running ✅"
-
-# ---------------------------
-# Telegram Message Handler
-# ---------------------------
 @bot.message_handler(func=lambda message: True)
-def reply_message(message):
-    user_text = message.text.strip().lower()
-
-    # Agar user ka text dictionary me hai to wahi reply
-    if user_text in DICTIONARY:
-        bot.reply_to(message, DICTIONARY[user_text])
+def reply(message):
+    text = message.text.lower()
+    if text in responses:
+        bot.reply_to(message, responses[text])
     else:
-        # Agar nahi mila to fixed reply
-        bot.reply_to(message, "❌ Sorry, Not Added in My Dictionary. Skip Question ⁉️")
+        bot.reply_to(message, "Sorry! Not added in my dictionary. Skip question ⁉️")
 
-# ---------------------------
-# Start Bot + Flask Server
-# ---------------------------
+@app.route('/')
+def index():
+    return "Bot is running!"
+
+import threading
+def run_bot():
+    bot.infinity_polling()
+
+threading.Thread(target=run_bot).start()
+
 if __name__ == "__main__":
-    port = int(os.getenv("PORT", 5000))
-    # Run bot in polling (Render background service ka charge leta hai, isliye polling Flask ke sath chalate hain)
-    import threading
-    threading.Thread(target=lambda: bot.polling(none_stop=True, interval=0)).start()
-    app.run(host="0.0.0.0", port=port)
+    app.run(host="0.0.0.0", port=10000)
