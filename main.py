@@ -1,63 +1,51 @@
-from flask import Flask
-from telegram.ext import Updater, MessageHandler, Filters
-import difflib
 import json
+import os
+import threading
+from flask import Flask
+from telegram.ext import Application, MessageHandler, filters
 
-# ---------------- Flask Server ----------------
+# --- Flask for Render keep-alive ---
 app = Flask(__name__)
 
 @app.route('/')
 def home():
-    return "✅ Bot is running successfully!"
+    return "Bot is running fine!"
 
-# ---------------- Load Dictionary ----------------
+def run_flask():
+    port = int(os.environ.get("PORT", 5000))
+    app.run(host="0.0.0.0", port=port)
+
+# --- Load Dictionary ---
 with open("dictionary.json", "r", encoding="utf-8") as f:
-    dictionary = json.load(f)
+    WORDS = json.load(f)
 
-# ---------------- Telegram Bot Setup ----------------
-TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"  # <-- Aapka Bot Token
-updater = Updater(TOKEN, use_context=True)
-dispatcher = updater.dispatcher
+# --- Bot Config ---
+BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
 
-# User ke liye suggestions store karne ka dict
-user_suggestions = {}
+async def handle_message(update, context):
+    text = update.message.text.lower().strip()
+    # Clean input (remove spaces, extra dots etc.)
+    clean = "".join(ch for ch in text if ch.isalnum())
 
-# ---------------- Matching Function ----------------
-def find_reply(text, user_id):
-    text = text.lower().strip()
-    keys = list(dictionary.keys())
+    response = None
+    for key, value in WORDS.items():
+        if clean == key.lower().replace(" ", ""):
+            response = value
+            break
 
-    # Agar user "yes" bole aur uske liye suggestion store hai
-    if text == "yes" and user_id in user_suggestions:
-        suggested_key = user_suggestions[user_id]
-        del user_suggestions[user_id]
-        return dictionary[suggested_key]
+    if response:
+        await update.message.reply_text(response)
+    else:
+        await update.message.reply_text("❌ Word not found in my dictionary.")
 
-    # Normal fuzzy match (cutoff=0.6)
-    matches = difflib.get_close_matches(text, keys, n=1, cutoff=0.6)
-    if matches:
-        return dictionary[matches[0]]
+def main():
+    # Start Flask server in background thread
+    threading.Thread(target=run_flask, daemon=True).start()
 
-    # Suggestion dena (cutoff=0.3 for loose matching)
-    suggestion = difflib.get_close_matches(text, keys, n=1, cutoff=0.3)
-    if suggestion:
-        user_suggestions[user_id] = suggestion[0]
-        return f"❓ Did you mean: '{suggestion[0]}' ? Reply with 'Yes' to confirm."
-    
-    # Agar kuch bhi match na mile
-    return "❌ Sorry, I don’t understand. Try another word!"
+    # Start Telegram bot
+    app = Application.builder().token(BOT_TOKEN).build()
+    app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
+    app.run_polling()
 
-# ---------------- Handler ----------------
-def handle_message(update, context):
-    user_text = update.message.text
-    user_id = update.message.from_user.id
-    reply = find_reply(user_text, user_id)
-    update.message.reply_text(reply)
-
-# ---------------- Dispatcher ----------------
-dispatcher.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
-
-# ---------------- Start Bot ----------------
 if __name__ == "__main__":
-    updater.start_polling()
-    app.run(host="0.0.0.0", port=5000)
+    main()
