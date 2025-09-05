@@ -1,35 +1,56 @@
-import telebot
 import json
-import re
 import os
+from flask import Flask
+from threading import Thread
+from telegram.ext import Updater, MessageHandler, Filters
 
-# === Bot Token ===
-BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
-bot = telebot.TeleBot(BOT_TOKEN)
+# Load dictionary
+with open("dictionary.json", "r", encoding="utf-8") as f:
+    DICTIONARY = json.load(f)
 
-# === Load Dictionary ===
-if os.path.exists("dictionary.json"):
-    with open("dictionary.json", "r", encoding="utf-8") as f:
-        responses = json.load(f)
-else:
-    responses = {}
+# Function to normalize input (lowercase + strip spaces)
+def normalize(text: str) -> str:
+    return text.strip().lower()
 
-# === Text Cleaner (normalization) ===
-def clean_text(text):
-    text = text.lower().strip()                  # lowercase + trim
-    text = re.sub(r'[^\w\s]', '', text)          # remove punctuation
-    return text
+# Telegram message handler
+def handle_message(update, context):
+    user_text = normalize(update.message.text)
 
-# === Bot Message Handler ===
-@bot.message_handler(func=lambda message: True)
-def reply(message):
-    text = clean_text(message.text)
-
-    if text in responses:
-        bot.reply_to(message, responses[text])
+    # Search in dictionary
+    if user_text in DICTIONARY:
+        reply = DICTIONARY[user_text]
     else:
-        bot.reply_to(message, "Sorry! Not added in my dictionary. Skip question ⁉️")
+        reply = "Soory 😅 Not Added In My Dictionary, Skip Question ⁉️"
 
-# === Run Bot ===
-print("🤖 Bot is running...")
-bot.infinity_polling()
+    update.message.reply_text(reply)
+
+# Flask app (Render free deploy trick)
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "Bot Running ✅"
+
+def run():
+    app.run(host="0.0.0.0", port=int(os.environ.get("PORT", 5000)))
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
+
+if __name__ == "__main__":
+    # Flask keep alive
+    keep_alive()
+
+    # Your Telegram bot token
+    TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
+
+    # Setup bot
+    updater = Updater(TOKEN, use_context=True)
+    dp = updater.dispatcher
+
+    dp.add_handler(MessageHandler(Filters.text & ~Filters.command, handle_message))
+
+    # Start bot
+    updater.start_polling()
+    updater.idle()
