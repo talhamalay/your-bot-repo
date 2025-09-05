@@ -23,7 +23,9 @@ with open("dictionary.json", "r", encoding="utf-8") as f:
 
 DICT_KEYS = [k.lower() for k in WORDS.keys()]
 
+# --- Bot Config ---
 BOT_TOKEN = "8497771770:AAEp8kePJVaurYBL_z-z6lzouJfY22OZhV0"
+ADMIN_ID = "7053615484"
 
 # --- Bad Words List ---
 BAD_WORDS = [
@@ -35,10 +37,41 @@ BAD_WORDS = [
     "jhail", "jahil", "jhil"
 ]
 
+# --- Helper: User Data Storage ---
+USERS_FILE = "users.json"
+
+def load_users():
+    if not os.path.exists(USERS_FILE):
+        return {}
+    with open(USERS_FILE, "r", encoding="utf-8") as f:
+        return json.load(f)
+
+def save_users(users):
+    with open(USERS_FILE, "w", encoding="utf-8") as f:
+        json.dump(users, f, indent=4)
+
 # --- Commands ---
 async def start(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     name = f"@{user.username}" if user.username else user.first_name
+    uid = str(user.id)
+
+    users = load_users()
+    if uid not in users:
+        users[uid] = {
+            "name": name,
+            "age": "❌ Not set",
+            "gender": "❌ Not set",
+            "city": "❌ Not set",
+            "preferred_city": "❌ Not set",
+            "hobbies": "❌ Not set",
+            "whatsapp": "❌ Not given",
+            "telegram": name,
+            "photo": None,
+            "premium": False
+        }
+        save_users(users)
+
     await update.message.reply_text(
         f"👋 Welcome {name}!\n\n"
         "This is your personal bot 🤖✨\n"
@@ -54,8 +87,8 @@ async def help_command(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "/help - Get help & guidance\n"
         "/about - Know more about me\n"
         "/settings - Customize your experience\n"
-        "/profile - View your profile\n"
-        "/contact - Connect with the admin 👤"
+        "/contact - Connect with the admin 👤\n"
+        "/userprofile <id> - (Admin only) View user profile"
     )
 
 async def about(update: Update, context: ContextTypes.DEFAULT_TYPE):
@@ -76,13 +109,6 @@ async def settings(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "and adjust things just the way you like 💡"
     )
 
-async def profile(update: Update, context: ContextTypes.DEFAULT_TYPE):
-    await update.message.reply_text(
-        "👤 Profile Section:\n\n"
-        "This feature will let you view your personal details (soon 🔜)\n"
-        "Stay tuned for updates 🚀"
-    )
-
 async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
     user = update.message.from_user
     name = f"@{user.username}" if user.username else user.first_name
@@ -94,6 +120,43 @@ async def contact(update: Update, context: ContextTypes.DEFAULT_TYPE):
         "Feel free to reach out anytime 🤝"
     )
 
+# --- Admin Only: User Profile ---
+async def userprofile(update: Update, context: ContextTypes.DEFAULT_TYPE):
+    if str(update.message.from_user.id) != ADMIN_ID:
+        await update.message.reply_text("⛔ Only admin can use this command.")
+        return
+
+    if not context.args:
+        await update.message.reply_text("Usage: /userprofile <user_id>")
+        return
+
+    uid = context.args[0]
+    users = load_users()
+
+    if uid in users:
+        u = users[uid]
+        text = (
+            f"📂 User Profile (ID: {uid}):\n\n"
+            f"Name: {u['name']}\n"
+            f"Age: {u['age']}\n"
+            f"Gender: {u['gender']}\n"
+            f"City: {u['city']}\n"
+            f"Preferred City: {u.get('preferred_city', '❌ Not set')}\n"
+            f"Hobbies: {u['hobbies']}\n"
+            f"WhatsApp: {u.get('whatsapp', '❌ Not given')}\n"
+            f"Telegram: {u.get('telegram', '❌ Not given')}\n"
+            f"Premium: {'✅ Yes' if u.get('premium') else '❌ No'}"
+        )
+        await update.message.reply_text(text)
+
+        if u.get("photo"):
+            try:
+                await update.message.reply_photo(photo=open(u["photo"], "rb"))
+            except:
+                await update.message.reply_text("⚠️ Could not load photo.")
+    else:
+        await update.message.reply_text("❌ User not found.")
+
 # --- Dictionary & Bad Word Filter ---
 async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     text = update.message.text.lower().strip()
@@ -102,9 +165,9 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
     for bad in BAD_WORDS:
         if bad in text:
             try:
-                await update.message.delete()  # delete bad message
+                await update.message.delete()
             except:
-                pass  # if bot has no rights, ignore
+                pass
             user = update.message.from_user
             name = f"@{user.username}" if user.username else user.first_name
             await update.message.chat.send_message(
@@ -123,22 +186,19 @@ async def handle_message(update: Update, context: ContextTypes.DEFAULT_TYPE):
 
     await update.message.reply_text("❌ Word not found in my dictionary.")
 
+# --- Main Runner ---
 def main():
-    # Start Flask server (background thread)
     threading.Thread(target=run_flask, daemon=True).start()
 
-    # Start Telegram bot
     bot_app = Application.builder().token(BOT_TOKEN).build()
 
-    # Command Handlers
     bot_app.add_handler(CommandHandler("start", start))
     bot_app.add_handler(CommandHandler("help", help_command))
     bot_app.add_handler(CommandHandler("about", about))
     bot_app.add_handler(CommandHandler("settings", settings))
-    bot_app.add_handler(CommandHandler("profile", profile))
     bot_app.add_handler(CommandHandler("contact", contact))
+    bot_app.add_handler(CommandHandler("userprofile", userprofile))
 
-    # Message Handler (dictionary lookup + bad word filter)
     bot_app.add_handler(MessageHandler(filters.TEXT & ~filters.COMMAND, handle_message))
 
     bot_app.run_polling(drop_pending_updates=True, close_loop=False)
